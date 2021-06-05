@@ -20,7 +20,7 @@ contract('Oracles', async (accounts) => {
   });
 
 
-  it('can register oracles', async () => {
+  xit('can register oracles', async () => {
     
     // ARRANGE
     let fee = await config.flightSuretyApp.REGISTRATION_FEE.call();
@@ -33,7 +33,7 @@ contract('Oracles', async (accounts) => {
     }
   });
 
-  it('can request flight status', async () => {
+  xit('can request flight status', async () => {
     
     // ARRANGE
     let flight = 'ND1309'; // Course number
