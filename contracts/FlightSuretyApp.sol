@@ -36,9 +36,10 @@ contract FlightSuretyApp {
     uint FUNDING_VALUE = 10 ether;
 
     uint constant OPERATIONAL_VOTING = 1; 
+    uint constant MIN_AIRLINES_FOR_VOTING = 3;
 
 
-    uint private constant MAX_INSURENCE_COST = 1 ether; 
+    uint private constant MAX_INSURANCE_COST = 1 ether; 
 
 
     event UpdateAppContractVoting(address voter, address newContractAddress, bool last);
@@ -72,10 +73,21 @@ contract FlightSuretyApp {
         _;
     }
 
-
     modifier activeAirline()
     {
         require(dataContract.isActiveAirline(msg.sender), "Caller should be active airline");
+        _;
+    }
+
+    modifier votedAirline()
+    {
+        require(dataContract.isVotedAirline(msg.sender), "Caller should be voted airline");
+        _;
+    } 
+
+    modifier onlyOwner() 
+    {
+        require(msg.sender == contractOwner, "Only owner can call this function");
         _;
     }
 
@@ -146,7 +158,7 @@ contract FlightSuretyApp {
 
         votes = dataContract.addVoter(OPERATIONAL_VOTING, msg.sender);
         uint numOfAirlines = dataContract.getNumOfAirlines();
-        success = votes > numOfAirlines / 2;
+        success = 2 * votes >= numOfAirlines;
 
         if  (success)
         {
@@ -167,6 +179,16 @@ contract FlightSuretyApp {
 
         dataContract.removeOperationalVote(OPERATIONAL_VOTING, actPosition, msg.sender);
     } 
+
+    // Only for register first several airlines. 
+    function registerAirlineWithoutVoting(address addr) external requireIsOperational onlyOwner
+    {
+        require(dataContract.getNumOfAirlines() < MIN_AIRLINES_FOR_VOTING, 'Already enough airlines for voting');
+
+        uint votingId = getairlineVotingId(addr);
+
+        dataContract.confirmAirline(addr, votingId, msg.sender);
+    }
   
    /**
     * @dev Add an airline to the registration queue
@@ -177,6 +199,7 @@ contract FlightSuretyApp {
                                 address addr
                             )
                             external
+                            requireIsOperational
                             activeAirline
                             returns(bool success, uint256 votes)
     {
@@ -187,7 +210,7 @@ contract FlightSuretyApp {
 
         votes = dataContract.addVoter(votingId, msg.sender);
         uint numOfAirlines = dataContract.getNumOfAirlines();
-        success = votes > numOfAirlines / 2;
+        success = 2 * votes >= numOfAirlines;
 
         if  (success)
         {
@@ -199,16 +222,16 @@ contract FlightSuretyApp {
         }
     }
 
-    function unRegisterAirline(address addr) external activeAirline returns(bool success, uint votes)
+    function unRegisterAirline(address addr) external requireIsOperational activeAirline returns(bool success, uint votes)
     {
-        require(!dataContract.isVotedAirline(addr), "You cant unregister unregistered airline");// ?
+        require(dataContract.isActiveAirline(addr), "You cant unregister unregistered airline");// ?
         uint votingId = getairlineVotingId(addr);
 
         require(!dataContract.isDuplicateVotingAddress(votingId, msg.sender), "You have already voted");
 
         votes = dataContract.addVoter(votingId, msg.sender);
         uint numOfAirlines = dataContract.getNumOfAirlines();
-        success = votes > numOfAirlines / 2;
+        success = 2 * votes >= numOfAirlines;
 
         if  (success)
         {
@@ -220,10 +243,10 @@ contract FlightSuretyApp {
         }
     }
 
-    function fund() external payable activeAirline
+    function fund() external payable requireIsOperational votedAirline
     {
         require(dataContract.isVotedAirline(msg.sender), "Airline should be voted first."); // ? 
-        require(msg.value >= FUNDING_VALUE, "You have send not enought ether");
+        require(msg.value >= FUNDING_VALUE, "You have send not enough ether");
 
         msg.sender.transfer(msg.value - FUNDING_VALUE);
         dataContract.fund(msg.sender);
@@ -248,6 +271,7 @@ contract FlightSuretyApp {
                                     string flightNumber
                                 )
                                 external
+                                requireIsOperational
                                 activeAirline
     {
         bytes32 key = keccak256(abi.encodePacked(msg.sender, flightNumber)); 
@@ -256,25 +280,25 @@ contract FlightSuretyApp {
         dataContract.registerFlight(key, msg.sender, flightNumber, STATUS_CODE_UNKNOWN);
     }
 
-    function buyInsurence(bytes32 key) external payable
+    function buyInsurance(bytes32 key) external requireIsOperational payable
     {
         require(dataContract.isFlightRegistered(key), "No such flight");
-        require(msg.value >= MAX_INSURENCE_COST, "You have sent more than maximum insurence cost"); 
-        require(dataContract.hasInsurence(msg.sender, key), "You already have insurence for this flight");
+        require(msg.value <= MAX_INSURANCE_COST, "You have sent more than maximum insurance cost"); 
+        require(!dataContract.hasInsurance(msg.sender, key), "You already have insurance for this flight");
 
-        dataContract.buyInsurence(msg.sender, key);
+        dataContract.buyInsurance.value(msg.value)(msg.sender, key, (msg.value * 3)/2);
     }
 
-    function payForInsurence(bytes32 key) external 
+    function payForInsurance(bytes32 key) external requireIsOperational
     {
         require(dataContract.isFlightRegistered(key), "No such flight");
-        require(dataContract.hasInsurence(msg.sender, key), "You don't have insurence for that flight");
+        require(dataContract.hasInsurance(msg.sender, key), "You don't have insurance for that flight");
 
         uint8 flightStatusCode = dataContract.getFlightStatusCode(key);
 
         if (flightStatusCode == STATUS_CODE_LATE_AIRLINE) 
         {
-            dataContract.payForInsurence(msg.sender, key);
+            dataContract.payForInsurance(msg.sender, key);
         } 
         else if (flightStatusCode != STATUS_CODE_UNKNOWN)
         {
@@ -282,7 +306,7 @@ contract FlightSuretyApp {
         }
     }
 
-    function updateAppContract(address newAppContract) activeAirline
+    function updateAppContract(address newAppContract) external requireIsOperational activeAirline
     {
         require(!isDuplicateAddress(appUpdateVoting[newAppContract], msg.sender), "You have already voted for changing app contract.");
 
@@ -302,7 +326,7 @@ contract FlightSuretyApp {
     }
 
     // !!! Позволяет компании зачистить страховки, если полёт в нужном статусе
-    function clearInsurences(bytes32 key, address[] addresses) external pure {
+    function clearInsurances(bytes32 key, address[] addresses) external pure {
 
     } 
     
@@ -420,8 +444,6 @@ contract FlightSuretyApp {
     }
 
 
-
-
     // Called by oracle when a response is available to an outstanding request
     // For the response to be accepted, there must be a pending request that is open
     // and matches one of the three Indexes randomly assigned to the oracle at the
@@ -537,10 +559,10 @@ contract FlightSuretyData {
     function getNumOfVotes(uint votingId) external view returns(uint);
     function registerFlight(bytes32  key, address airlineAddress, string flightNumber, uint8 status) external;
     function isFlightRegistered(bytes32 key) external view returns(bool);
-    function hasInsurence(address accountAddress, bytes32 flightId) external returns(bool);
-    function buyInsurence(address accountAddress, bytes32 key) external payable;
+    function hasInsurance(address accountAddress, bytes32 flightId) external view returns(bool);
+    function buyInsurance(address accountAddress, bytes32 key, uint payments) external payable;
     function getFlightStatusCode(bytes32 flightId) external returns(uint8);
-    function payForInsurence(address accountAddress, bytes32 key) external;
+    function payForInsurance(address accountAddress, bytes32 key) external;
     function removeInsurance(address accountAddress, bytes32 key) external;
     function updateAppContract(address prevAppContract, address newAppContract) external;
 }

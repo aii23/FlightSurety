@@ -26,11 +26,11 @@ contract FlightSuretyData {
         uint8 statusCode;       
         address airline;
         string flightNumber; // Unique within airline
-        uint numOfInsurences;
+        uint numOfInsurances;
         uint updatedTimestamp; 
     }
 
-    struct Insurence {
+    struct Insurance {
         bool active; 
         uint payments;  
     }
@@ -42,7 +42,7 @@ contract FlightSuretyData {
 
 
 
-    uint constant MIN_AIRLINES_FOR_VOTING = 10;
+    uint constant MIN_AIRLINES_FOR_VOTING = 3;
     uint constant BITES_BEFORE_AIRLINE_VOTING = 4; 
 
     mapping(uint => address[]) voting; // Operational and addition voting  ???
@@ -52,13 +52,13 @@ contract FlightSuretyData {
 
     mapping(uint => address[]) appContractVoting;
 
-    mapping(address => mapping(bytes32 => Insurence)) accountInsurances; 
+    mapping(address => mapping(bytes32 => Insurance)) accountInsurances; 
 
     // mapping(uint => Flight) activeFlights;
 
-    uint FUNDING_VALUE = 10 ether;
+    uint constant INITIAL_FUNDING_VALUE = 10 ether;
 
-    uint private insurence_coef = 150;
+    uint private insurance_coef = 150;
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -73,19 +73,29 @@ contract FlightSuretyData {
                                 (
                                 ) 
                                 public 
+                                payable
     {
+        require(msg.value >= INITIAL_FUNDING_VALUE, "You have send not enough ether");
         contractOwner = msg.sender;
+        msg.sender.transfer(msg.value - INITIAL_FUNDING_VALUE);
+        addAirline(msg.sender);
+        _fund(msg.sender);
     }
 
     event FlightMemorization(uint8 statusCode, address airline, string flightNumber);
 
     event OperationalVoting(address voter, bool mode, bool last);
-    event OperationalVotingReverted(address voter);
+    event OperationalVotingReverted(address voter, uint position);
 
     event AddingAirlineVoting(address addedAirline, address voter, bool last);
     event RemoveAirlineVoting(address removedAirline, address voter, bool last);
 
     event AppContractUpdated(address prevAppContract, address newAppContract);
+
+    event FlightRegistered(address airline, string flightNumber, bytes32 key); // remove key;
+
+    event BoughtInsurance(address user, bytes32 flightKey, uint cost);
+    event PaidForInsurence(address user, bytes32 flightKey, uint cost);
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -131,6 +141,13 @@ contract FlightSuretyData {
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
+
+    /// Only for testing. Should be deleted, when deployed to mainnet 
+    function setFlightStatus(bytes32 flightKey, uint8 statusCode) external requireContractOwner 
+    {
+        activeFlights[flightKey].statusCode = statusCode;
+    }
+
 
     // Add ability for address to access functions from current contract
     function authorizeContract(address _address) external requireContractOwner {
@@ -230,7 +247,7 @@ contract FlightSuretyData {
         }
     }
 
-    function hasInsurence(address accountAddress, bytes32 flightId) external returns(bool)
+    function hasInsurance(address accountAddress, bytes32 flightId) external view returns(bool)
     {
         return accountInsurances[accountAddress][flightId].active;
     } 
@@ -256,11 +273,14 @@ contract FlightSuretyData {
 
     function getNumOfVotes(uint votingId) external view returns(uint) {
         return voting[votingId].length;
-    } 
+    }
+
+    function addAirline(address airlineAddress) private {
+        airlines[airlineAddress].voted = true;
+    }
 
     function confirmAirline(address airlineAddress, uint votingId, address voter) external onlyAuthorized {
-        airlines[airlineAddress].voted = true;
-        numOfAirlines++;
+        addAirline(airlineAddress);
         delete voting[votingId];
         emit AddingAirlineVoting(airlineAddress, voter, true);
     }
@@ -302,8 +322,13 @@ contract FlightSuretyData {
 
     function removeOperationalVote(uint votingId, uint position, address voter) external onlyAuthorized 
     {
-        delete voting[votingId][position]; 
-        emit OperationalVotingReverted(voter);
+        if (voting[votingId].length > 1)
+        {
+            voting[votingId][position] = voting[votingId][voting[votingId].length-1];
+        }
+        voting[votingId].length--;
+  
+        emit OperationalVotingReverted(voter, position);
     }
 
 
@@ -335,22 +360,26 @@ contract FlightSuretyData {
         emit AppContractUpdated(prevAppContract, newAppContract);
     }
 
-    function buyInsurence(address accountAddress, bytes32 key) external payable requireIsOperational
+    function buyInsurance(address accountAddress, bytes32 key, uint payments) external payable requireIsOperational
     {
-        accountInsurances[accountAddress][key] = Insurence({
+        accountInsurances[accountAddress][key] = Insurance({
             active: true,
-            payments: msg.value
+            payments: payments
         });
 
-        activeFlights[key].numOfInsurences = activeFlights[key].numOfInsurences.add(1);
+        activeFlights[key].numOfInsurances = activeFlights[key].numOfInsurances.add(1);
+
+        emit BoughtInsurance(accountAddress, key, msg.value);
     }
 
-    function payForInsurence(address accountAddress, bytes32 key) external requireIsOperational
+    function payForInsurance(address accountAddress, bytes32 key) external requireIsOperational
     {
         uint payments = accountInsurances[accountAddress][key].payments; 
 
         _removeInsurance(accountAddress, key);
         accountAddress.transfer(payments);
+
+        emit PaidForInsurence(accountAddress, key, payments);
     }
 
     function removeInsurance(address accountAddress, bytes32 key) external requireIsOperational
@@ -360,7 +389,7 @@ contract FlightSuretyData {
 
     function _removeInsurance(address accountAddress, bytes32 key) private requireIsOperational
     {
-        uint insurancesLeft = activeFlights[key].numOfInsurences.sub(1);
+        uint insurancesLeft = activeFlights[key].numOfInsurances.sub(1);
         delete accountInsurances[accountAddress][key]; 
         
         if (insurancesLeft == 0)
@@ -384,9 +413,11 @@ contract FlightSuretyData {
             statusCode: status,
             airline: airlineAddress,
             flightNumber: flightNumber,
-            numOfInsurences: 0,
+            numOfInsurances: 0,
             updatedTimestamp: now
         });
+
+        emit FlightRegistered(airlineAddress, flightNumber, key);
     }
     
 
@@ -405,7 +436,17 @@ contract FlightSuretyData {
                             onlyAuthorized
 
     {
+        _fund(airlineAddress);
+    }
+
+    function _fund
+                            (   
+                                address airlineAddress
+                            )
+                            private
+    {
         airlines[airlineAddress].active = true;
+        numOfAirlines++;
     }
 
     function getFlightKey

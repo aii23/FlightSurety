@@ -1,117 +1,373 @@
-
 var Test = require('../config/testConfig.js');
 var BigNumber = require('bignumber.js');
 
-contract('Flight Surety Tests', async (accounts) => {
+var BN = web3.utils.BN;
 
-	var config;
+const {
+  constants,    // Common constants, like the zero address and largest integers
+  expectEvent,  // Assertions for emitted events
+  expectRevert, // Assertions for transactions that should fail
+} = require('@openzeppelin/test-helpers');
+
+
+const STATUS_CODE_UNKNOWN = 0;
+const STATUS_CODE_ON_TIME = 10;
+const STATUS_CODE_LATE_AIRLINE = 20;
+const STATUS_CODE_LATE_WEATHER = 30;
+const STATUS_CODE_LATE_TECHNICAL = 40;
+const STATUS_CODE_LATE_OTHER = 50;
+
+
+const MIN_AIRLINES_FOR_VOTING = 3;
+let FUNDING_VALUE = web3.utils.toWei(new BN('10'), 'ether');
+
+function keccak256(...args) {
+	return web3.utils.sha3(args.reduce((acc, cur) => acc + web3.utils.toHex(cur), ""));
+}
+
+contract('Flight Surety Tests', async (accounts) => {
+	let config;
+	let flightSuretyData;
+	let flightSuretyApp;
+	let activeAirlines = [];
 	before('setup contract', async () => {
 		config = await Test.Config(accounts);
-		await config.flightSuretyData.authorizeCaller(config.flightSuretyApp.address);
+		await config.flightSuretyData.authorizeContract(config.flightSuretyApp.address);
+
+		flightSuretyData = config.flightSuretyData;
+		flightSuretyApp = config.flightSuretyApp;
 	});
 
 	/****************************************************************************************/
 	/* Operations and Settings                                                              */
 	/****************************************************************************************/
 
-	xdescribe('Operational Tests', async() => {
-        xit('Can\'t set operational status without voting', async() => {
 
-        });
-        xit('Can set operational status with voting', async() => {
+	describe('Airline registration', async() => {
+		it(`Contract owner is first airline`, async() => {
+			let active = await flightSuretyData.isActiveAirline(config.airlines[0]);
+			assert.equal(active, true, 'Contract creator is not airline');
+			activeAirlines.push(config.airlines[0]);
+		});
 
-        });
-        xit('Can\'t call data changing functions while contract is not opreational', async() => {
+		it(`Can register first ${MIN_AIRLINES_FOR_VOTING} airlines without voting`, async() => {
+			let active; 
+			for (airline of config.airlines.slice(1, MIN_AIRLINES_FOR_VOTING)) {
+				await flightSuretyApp.registerAirlineWithoutVoting(airline, { from: config.owner });
+				await flightSuretyApp.fund({ from: airline, value: FUNDING_VALUE});
+				active = await flightSuretyData.isActiveAirline.call(airline);
+				assert.equal(active, true, 'Cant register flight without voting');
+				activeAirlines.push(airline);
+			}
+		});
 
-        });
-        xit('Can\'t change back operational status without voting', async() => {
+		it(`Can't register more than ${MIN_AIRLINES_FOR_VOTING} without voting`, async() => {
+			let trigered = false;
+			let airline = config.airlines[activeAirlines.length];
 
-        });
-        xit('Can change back operational status with voting', async() => {
+			try {
+				await flightSuretyApp.registerAirlineWithoutVoting(airline, { from: config.owner });
+			} catch (e) {
+				trigered = true;
+			}
 
-        });
-		xit('Can remove operational vote', async() => {
+			assert.equal(trigered, true, `Can register more than ${MIN_AIRLINES_FOR_VOTING} without voting`);
+		});
+		it(`Can't register airline without voting`, async() => {
+			let trigered = false;
+			let airline = config.airlines[activeAirlines.length];
+			let voter = config.airlines[0];
 
+			await flightSuretyApp.registerAirline(airline, { from: voter }); // Should go fine
+
+			try {
+				await flightSuretyApp.fund({ from: airline, value: FUNDING_VALUE});
+			} catch (e) {
+				trigered = true;
+			}
+
+			assert.equal(trigered, true, `Can register airline without voting`);
+		});
+		it(`Can't double vote`, async() => {
+			let airline = config.airlines[activeAirlines.length];
+			let voter = config.airlines[0];
+
+			await expectRevert(
+				flightSuretyApp.registerAirline(airline, { from: voter }),
+				'You have already voted'
+			);
+		});
+		it(`Can register airline with voting`, async() => {
+			let airline = config.airlines[activeAirlines.length];
+			for (voter of activeAirlines.slice(1, Math.ceil(activeAirlines.length / 2))) {
+				let { tx } = await flightSuretyApp.registerAirline(airline, { from: voter });
+				expectEvent.inTransaction(tx, flightSuretyData, 'AddingAirlineVoting');
+			}
+
+			let voted = await flightSuretyData.isVotedAirline(airline); 
+			assert.equal(voted, true, `Voting has no effect`);
+		});
+		it(`Can't operate without funding`, async() => {
+			let trigered = false; 
+			let airline = config.airlines[activeAirlines.length];
+			try 
+			{
+				await fligtSuretyApp.registerFlight('New flight'); 
+			} catch(e) {
+				trigered = true;
+			}
+			assert.ok(trigered, 'Can operate without funding');
+		});
+		it(`Can fund contract after voting`, async() => {
+			let airline = config.airlines[activeAirlines.length];
+			let valueForFunding = web3.utils.toWei(new BN('11'), 'ether');
+			let initialBalance = await web3.eth.getBalance(airline);
+
+			await flightSuretyApp.fund({ from: airline, value: valueForFunding, gasPrice: 0 });
+			let active = await flightSuretyData.isActiveAirline.call(airline);
+
+			assert.ok(active, 'Airline is still inactive');
+			let currentBalance = await web3.eth.getBalance(airline);
+			assert.equal(initialBalance - currentBalance, FUNDING_VALUE, 'Change is not correct');
+			activeAirlines.push(airline);
+		});
+		it(`Can operate after funding`, async() => {
+			let flightName = 'New flight';
+			let airline = config.airlines[activeAirlines.length - 1];
+			let result = await flightSuretyApp.registerFlight('New flight', { from: airline }); 
+			let flightId = web3.utils.soliditySha3(airline, flightName);
+			let isFlightRegistered = await flightSuretyData.isFlightRegistered(flightId);
+			assert.ok(isFlightRegistered, `Can't register flight after funding`);
+		});
+		it(`Can't remove airline without voting`, async() => {
+			let airline = config.airlines[activeAirlines.length - 1];
+			let initialStatus = flightSuretyData.isActiveAirline(airline);
+			assert.ok(initialStatus, 'Airline is not registered');
+			let voter = activeAirlines[0];
+			await flightSuretyApp.unRegisterAirline(airline, { from: voter });
+			let status = flightSuretyData.isActiveAirline(airline);
+			assert.ok(status, 'Can remove airline without voting');
+		});
+		it(`Can remove airline with voting`, async() => {
+			let airline = config.airlines[activeAirlines.length - 1];
+			for (voter of activeAirlines.slice(1, Math.ceil(activeAirlines.length / 2))) {
+				await flightSuretyApp.unRegisterAirline(airline, { from: voter });
+			}
+			let status = await flightSuretyData.isActiveAirline(airline);
+			assert.ok(!status, `Can't unregister airline`);
+			activeAirlines.pop();
 		});
 	});
 
+	describe('Flight registration', async() => {
+		it(`Can't register flight with inactive airline`, async() => {
+			let airline = config.airlines[activeAirlines.length];
+			let initailStatus = await flightSuretyData.isActiveAirline(airline);
+			assert.ok(!initailStatus, `Wrong test. Airline is active`);
+
+			let flightNum = 'F001';
+			let failed = false;
+			try 
+			{
+				await flightSuretyApp.registerFlight(flightNum, { from: airline }); 
+			} catch(e) {
+				failed = true;
+			}
+
+			assert.ok(failed, 'Can refister flight with inactive airline');
+		});
+		it(`Can register flight with active airline`, async() => {
+			let airline = activeAirlines[activeAirlines.length - 1];
+			let flightNum = 'F002';
+			await flightSuretyApp.registerFlight(flightNum, { from: airline });
+
+			let flightId = web3.utils.soliditySha3(airline, flightNum);
+			let isFlightRegistered = await flightSuretyData.isFlightRegistered(flightId);
+			assert.ok(isFlightRegistered, `Active airline can't register flight`);
+		});
+		xit(`Can't remove flight if it is active`, async() => {
+			// Функционал не используется =(
+		});
+		xit(`Can remove flight is it is inactive`, async() => {
+			// Функционал не используется =(
+		});
+	});
+
+	describe('Insurance Tests', async() => {
+		let airline;
+		let flighNum;
+		let flightId;
+		let cost;
+		let secondFLightNum;
+		let secondFlightId; 
+		let user;
+		it(`Init`, async() => {
+			airline = activeAirlines[activeAirlines.length - 1];
+			flightNum = 'F002';
+			flightId = web3.utils.soliditySha3(airline, flightNum);
+			cost = web3.utils.toWei(new BN('1'), 'ether');
+			user = config.users[0];
+		});
+
+		it(`Can't buy insurance for inactive flight`, async() => {
+			let wrongFlightNum = 'WFN002';
+			let wrongFlightId = web3.utils.soliditySha3(airline, wrongFlightNum);
+
+			await expectRevert(
+				flightSuretyApp.buyInsurance(wrongFlightId, { from: user, value: '0' }),
+				'No such flight'
+			);
+		});
+		it(`Can't buy insurance that cost more than 1 ether`, async() => {
+			let cost = web3.utils.toWei(new BN('2'), 'ether');
+
+			await expectRevert(
+				flightSuretyApp.buyInsurance(flightId, { from: user, value: cost }),
+				'You have sent more than maximum insurance cost'
+			);
+		});
+		it(`Can buy insurance for active flight`, async() => {
+			// console.log(flightId);
+			// console.log(config.users[0]);
+			// console.log(cost);
+			// let hasInsurance = await flightSuretyData.hasInsurance(config.users[0], flightId);
+			// console.log(hasInsurance);
+			let {tx} = await flightSuretyApp.buyInsurance(flightId, { from: user, value: cost });
+			expectEvent.inTransaction(tx, flightSuretyData, 'BoughtInsurance');
+			let hasInsurance = await flightSuretyData.hasInsurance(user, flightId);
+			assert.ok(hasInsurance);
+		});
+		it(`Can't buy insurance twice`, async() => {
+			await expectRevert(
+				flightSuretyApp.buyInsurance(flightId, { from: user, value: cost }),
+				'You already have insurance for this flight'
+			);
+		});
+		it(`Can buy insurence for another flight`, async() => {
+			secondFlightNum = 'F003';
+			secondFlightId = web3.utils.soliditySha3(airline, secondFlightNum);
+
+			await flightSuretyApp.registerFlight(secondFlightNum, { from: airline });
+			await flightSuretyApp.buyInsurance(secondFlightId, { from: user, value: cost });
+			let hasInsurance = await flightSuretyData.hasInsurance(user, secondFlightId);
+			assert.ok(hasInsurance);
+		});
+		it(`Can get paid for insurance if staus is STATUS_CODE_LATE_AIRLINE`, async() => {
+			await flightSuretyData.setFlightStatus(flightId, STATUS_CODE_LATE_AIRLINE, { from: config.owner });
+			let initialBalance = await web3.eth.getBalance(user);
+			let { tx } = await flightSuretyApp.payForInsurance(flightId, { from: user, gasPrice: 0 });
+			expectEvent.inTransaction(tx, flightSuretyData, 'PaidForInsurence');
+			let currentBalance = await web3.eth.getBalance(user);
+			assert.equal(currentBalance - initialBalance, cost * 1.5, 'Wrong payment');
+		});
+		it(`Can't get paid for insurance if status is not STATUS_CODE_LATE_AIRLINE`, async() => {
+			await flightSuretyData.setFlightStatus(secondFlightId, STATUS_CODE_ON_TIME, { from: config.owner });
+			let { tx } = await flightSuretyApp.payForInsurance(secondFlightId, { from: user, gasPrice: 0 });
+			expectEvent.notEmitted.inTransaction(tx, flightSuretyData, 'PaidForInsurence');
+		});
+	});
+
+	describe('Operational Tests', async() => {
+		it('Default operational status equal true', async() => {
+			let operational = await flightSuretyData.isOperational();
+			assert.ok(operational);
+		});
+		it(`Only active airline can vote for operational status changing`, async() => {
+			let user = config.users[0];
+			expectRevert(
+				flightSuretyApp.setOperatingStatus(false, { from: user }),
+				'Caller should be active airline'
+			);
+		});
+        it(`Can't set operational status without voting`, async() => {
+  			let airline = activeAirlines[0];
+  			let { tx } = await flightSuretyApp.setOperatingStatus(false, { from: airline });
+  			let operational = await flightSuretyData.isOperational();
+  			assert.ok(operational, 'Can change operational status without voting');
+
+  			let numOfVotes = await flightSuretyData.getNumOfVotes(1);
+  			assert.equal(numOfVotes, 1);
+        });
+        it(`Can remove operational vote`, async() => {
+        	let airline = activeAirlines[0];
+  			let { tx } = await flightSuretyApp.removeOperationalVote(0, { from: airline });
+  			expectEvent.inTransaction(tx, flightSuretyData, 'OperationalVotingReverted');
+		});
+        it(`Can set operational status with voting`, async() => {
+        	// console.log(activeAirlines);
+        	for (voter of activeAirlines.slice(0, Math.ceil(activeAirlines.length / 2))) {
+        		// console.log(voter);
+				let { tx } = await flightSuretyApp.setOperatingStatus(false, { from: voter });
+				expectEvent.inTransaction(tx, flightSuretyData, 'OperationalVoting');
+			}
+			let operational = await flightSuretyData.isOperational();
+  			assert.ok(!operational, `Can't change operational status with voting`);
+        });
+        it(`Can't call data changing functions while contract is not opreational`, async() => {
+        	let activeAirline = activeAirlines[1];
+        	let inActiveAirline = config.airlines[activeAirlines.length];
+        	let user = config.users[0];
+        	let flighNum = 'WFN003';
+        	let flightId = web3.utils.soliditySha3(activeAirline, flighNum);
+
+        	expectRevert(
+        		flightSuretyApp.registerAirline(inActiveAirline, { from: activeAirline }),
+        		'Contract is currently not operational'
+        	);
+        	expectRevert(
+        		flightSuretyApp.unRegisterAirline(activeAirline, { from: config.firstAirline }),
+        		'Contract is currently not operational'
+        	);
+        	expectRevert(
+        		flightSuretyApp.fund({ from: activeAirline }),
+        		'Contract is currently not operational'
+        	);
+        	expectRevert(
+        		flightSuretyApp.registerFlight(flighNum, { from: activeAirline }),
+        		'Contract is currently not operational'
+        	);
+        	expectRevert(
+        		flightSuretyApp.buyInsurance(flightId, { from: user }),
+        		'Contract is currently not operational'
+        	);
+        	expectRevert(
+        		flightSuretyApp.payForInsurance(flightId, { from: user }),
+        		'Contract is currently not operational'
+        	);
+        });
+        it(`Can't change back operational status without voting`, async() => {
+        	let airline = activeAirlines[0];
+        	let { tx } = await flightSuretyApp.setOperatingStatus(true, { from: airline });
+        	let operational = await flightSuretyData.isOperational();
+  			assert.ok(!operational, 'Can change operational status back without voting');
+        });
+        it(`Can change back operational status with voting`, async() => {
+        	for (voter of activeAirlines.slice(1, Math.ceil(activeAirlines.length / 2))) {
+				let { tx } = await flightSuretyApp.setOperatingStatus(true, { from: voter });
+				expectEvent.inTransaction(tx, flightSuretyData, 'OperationalVoting');
+			}
+			let operational = await flightSuretyData.isOperational();
+  			assert.ok(operational, `Can't change back operational status with voting`);
+        });
+	});
+
 	xdescribe('App contract update', async() => {
-		xit(`Cant update contract without voting`, async() => {
+		xit(`Can't update contract without voting`, async() => {
 
 		});
 		xit(`Can update contract with voting`, async() => {
 
 		});
 		xit(`Can't call data contract with old app contract`, async() => {
-
+			
 		});
 		xit('Can call data contract with new app contract', async() => {
 
 		});
 	});
 
-	xdescribe('Airline registration', async() => {
-		xit('Can\'t register airline without voting', async() => {
 
-		});
-		xit('Can register airline without voting', async() => {
-
-		});
-		xit('Can\'t operate without funding', async() => {
-
-		});
-		xit('Can fund contract after voting', async() => {
-
-		});
-		xit('Can operate after funding', async() => {
-
-		});
-		xit('Can\'t remove airline without voting', async() => {
-
-		});
-		xit('Can remove airline without voting', async() => {
-
-		});
-	});
-
-	xdescribe('Flight registration', async() => {
-		xit(`Can't register flight with unactive airline`, async() => {
-
-		});
-		xit(`Can register flight with active airline`, async() => {
-
-		});
-		xit(`Can't remove flight if it is active`, async() => {
-
-		});
-		xit(`Can remove flight is it is inactive`, async() => {
-
-		});
-	});
-
-	xdescribe('Insurence Tests', async() => {
-		xit(`Can't buy insurence that cost more than 1 ether`, async() => {
-
-		});
-		xit(`Can't buy insurence for inactive flight`, async() => {
-
-		});
-		xit(`Can buy insurence for active flight`, async() => {
-
-		});
-		xit(`Can't buy insurence twice`, async() => {
-
-		});
-		xit(`Can get paid for insurence if staus is STATUS_CODE_LATE_AIRLINE`, async() => {
-
-		});
-		xit(`Can't get paid for insurence if status is not STATUS_CODE_LATE_AIRLINE`, async() => {
-
-		});
-	})
-
-
-	it(`(multiparty) has correct initial isOperational() value`, async function () {
+	xit(`(multiparty) has correct initial isOperational() value`, async function () {
 
 		// Get operating status
 		let status = await config.flightSuretyData.isOperational.call();
@@ -119,7 +375,7 @@ contract('Flight Surety Tests', async (accounts) => {
 
 	});
 
-	it(`(multiparty) can block access to setOperatingStatus() for non-Contract Owner account`, async function () {
+	xit(`(multiparty) can block access to setOperatingStatus() for non-Contract Owner account`, async function () {
 
 			// Ensure that access is denied for non-Contract Owner account
 			let accessDenied = false;
@@ -134,7 +390,7 @@ contract('Flight Surety Tests', async (accounts) => {
 						
 	});
 
-	it(`(multiparty) can allow access to setOperatingStatus() for Contract Owner account`, async function () {
+	xit(`(multiparty) can allow access to setOperatingStatus() for Contract Owner account`, async function () {
 
 			// Ensure that access is allowed for Contract Owner account
 			let accessDenied = false;
@@ -149,7 +405,7 @@ contract('Flight Surety Tests', async (accounts) => {
 			
 	});
 
-	it(`(multiparty) can block access to functions using requireIsOperational when operating status is false`, async function () {
+	xit(`(multiparty) can block access to functions using requireIsOperational when operating status is false`, async function () {
 
 			await config.flightSuretyData.setOperatingStatus(false);
 
@@ -168,7 +424,7 @@ contract('Flight Surety Tests', async (accounts) => {
 
 	});
 
-	it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
+	xit('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
 		
 		// ARRANGE
 		let newAirline = accounts[2];

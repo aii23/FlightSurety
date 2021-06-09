@@ -7,6 +7,7 @@ var Config = async function(accounts) {
     
     // These test addresses are useful when you need to add
     // multiple users in test scripts
+
     let testAddresses = [
         "0x69e1CB5cFcA8A311586e3406ed0301C06fb839a2",
         "0xF014343BDFFbED8660A9d8721deC985126f189F3",
@@ -21,15 +22,20 @@ var Config = async function(accounts) {
 
 
     let owner = accounts[0];
+    //let firstAirline = accounts[1];
     let firstAirline = accounts[1];
+    let airlines = accounts.slice(0, 5);
+    let users = accounts.slice(5);
 
-    let flightSuretyData = await FlightSuretyData.new();
-    let flightSuretyApp = await FlightSuretyApp.new();
+    let flightSuretyData = await FlightSuretyData.new({ value: web3.utils.toWei('10', 'ether') });
+    let flightSuretyApp = await FlightSuretyApp.new(flightSuretyData.address);
 
     
     return {
         owner: owner,
         firstAirline: firstAirline,
+        airlines: airlines,
+        users: users, 
         weiMultiple: (new BigNumber(10)).pow(18),
         testAddresses: testAddresses,
         flightSuretyData: flightSuretyData,
