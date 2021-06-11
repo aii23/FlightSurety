@@ -1,5 +1,5 @@
 var HDWalletProvider = require("truffle-hdwallet-provider");
-var mnemonic = "excite burger meadow start donor install adapt pet together plastic general cube";
+var mnemonic = "leopard harbor cost goddess plug fit muscle retire bundle exact awake escape";
 
 module.exports = {
   networks: {
@@ -8,10 +8,8 @@ module.exports = {
         return new HDWalletProvider(mnemonic, "http://127.0.0.1:7545/", 0, 50);
       },
       network_id: '*',
-      gas: 9999999,
-      gasPrice: 10, // For testing purpose
-      defaultBalanceEther: 500
-    }
+      gas: 5999999
+    },
   },
   compilers: {
     solc: {

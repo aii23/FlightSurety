@@ -10,6 +10,7 @@ src/server/config.json
 prod/
 
 # Runtime data
+OraclesData.json
 pids
 *.pid
 *.seed
