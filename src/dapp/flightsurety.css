@@ -40,3 +40,7 @@ label.form {
 input {
     margin-right: 30px;
 }
+
+#flights td, #flights th {
+    border: 1px solid white;
+}

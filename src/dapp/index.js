@@ -3,6 +3,33 @@ import DOM from './dom';
 import Contract from './contract';
 import './flightsurety.css';
 
+class Flight
+{
+    constructor(
+        airlineName, 
+        flightNum, 
+        departureAirport, 
+        arivalAirport, 
+        departureDate, 
+        arivalDate, 
+        flightTime
+    ) {
+
+        this.airlineNumber = airlineNumber;
+        this.righNumber = rightNuber;
+        this.departureAirport = departureAirport;
+        this.arivalAirport = arivalAirport;
+        this.departureDate = deparureDate;
+        this.arivalDate = arivalDate;
+        this.flightTime = flightTime;
+    }
+
+
+    htmlTableRow() {
+
+    }
+
+}
 
 (async() => {
 
@@ -24,7 +51,9 @@ import './flightsurety.css';
             contract.fetchFlightStatus(flight, (error, result) => {
                 display('Oracles', 'Trigger oracles', [ { label: 'Fetch Flight Status', error: error, value: result.flight + ' ' + result.timestamp} ]);
             });
-        })
+        });
+
+        DOM.elid('')
     
     });
     
@@ -46,7 +75,11 @@ function display(title, description, results) {
     displayDiv.append(section);
 
 }
+ 
+// Get all flights from server, by parameters. returns array of Flight
+function getFlights() {
 
+}
 
 
 

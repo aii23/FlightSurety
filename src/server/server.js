@@ -19,7 +19,8 @@ let flightSuretyApp = new web3.eth.Contract(FlightSuretyApp.abi, config.appAddre
 let flightSuretyData = new web3.eth.Contract(FlightSuretyData.abi, config.dataAddress);
 let oracles = oraclesPrivateKeys.map((pKey) => web3.eth.accounts.privateKeyToAccount('0x' + pKey));
 oracles.forEach(oracle => web3.eth.accounts.wallet.add(oracle));
-console.log('Ok')
+// console.log('Ok')
+// console.log(flightSuretyData);
 getOracles(oracles, flightSuretyData, flightSuretyApp).then((e) => console.log(e));
 // console.log(oracles);
 
@@ -34,30 +35,71 @@ const fs = require('fs');
 const { promises } = require('stream');
 const fileName = './src/server/OraclesData.json'
 // const OraclesData = require(fileName);
-import OraclesData from './OraclesData.json';
+// 
+// console.log(fs.existsSync('./OraclesData.json'));
+// let OraclesData;
+
+// try {
+// 	OraclesData = require('./OraclesData.json');
+// } catch(e) {
+// 	OraclesData = {};
+// }
+
+// console.log(OraclesData);
+
+// if (fs.existsSync('./OraclesData.json'))
+// {
+// 	console.log('!!');
+// 	OraclesData = require('./OraclesData.json');
+// }
+// let OraclesData = fs.existsSync('./OraclesData.json') ? require('./OraclesData.json') : {}; 
+
+// if (fs.existsSync('./OraclesData.json')) {
+
+// } else {
+
+// }
+// import OraclesData from './OraclesData.json';
 
 
 
 async function getOracles(oracles, flightSuretyData, flightSuretyApp) {
-    console.log('Here');
-    if (OraclesData.oracles && OraclesData.DataContract === flightSuretyData.address) {
+	let OraclesData;
+	try {
+		OraclesData = require('./OraclesData.json');
+	} catch(e) {
+		OraclesData = {};
+	}
+
+    // console.log('Here');
+    // console.log('Oracle Data + ' + OraclesData);
+
+    console.log(OraclesData.DataContract);
+    console.log(flightSuretyData._address);
+    console.log();
+
+    if (OraclesData.OraclesData && OraclesData.DataContract === flightSuretyData._address) {
+    	console.log("Found data");
         return OraclesData.oracles;
     }
 //     console.log('here');
     console.log('Registration started');
     await Promise.all(oracles.map((oracle) => registerOracle(flightSuretyApp, oracle).catch((e) => console.log(e))));
 
-    console.log(`Registration ended`);
+    // console.log(`Registration ended`);
 
     let oraclesData = await Promise.all(oracles.map(oracle => getOracleData(flightSuretyApp, oracle))); 
 
-    console.log(`done getting oraclesData`);
-    console.log(oraclesData);
+    // console.log(`done getting oraclesData`);
+    // console.log(oraclesData);
+    // console.log(flightSuretyData);
 
     let result = {
-        DataContract: flightSuretyData.address, 
-        OraclesData: oraclesData
+        "DataContract": flightSuretyData._address,
+        "OraclesData": oraclesData
     };
+
+    // console.log(result);
 
     fs.writeFile(fileName, JSON.stringify(result), function writeJSON(err) {
         if (err) return console.log('Error');
