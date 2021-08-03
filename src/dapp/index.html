@@ -24,59 +24,166 @@
         <div id="display-wrapper" class="top-20">
         </div>
         <div class="row top-20">
-            <label class="form">Flight</label> <input type="text" id="flight-number"> <btn class="btn btn-primary" id="submit-oracle">Submit to Oracles</btn>
+            <label> Airline </label> 
+            <input id='airline_fetch_status'>
+            <label> Flight Number </label> 
+            <input type="text" id="flight_number_fetch_status"> 
+            <button id="submit-oracle"> Submit to Oracles </btn>
         </div>
     </main>
 
     <div class="container for-user" id="buy_insurence_container">
+        <h2> Flight Search </h2>
         <div id='flight_params'>
             <label> Airline </label>
             <input id='airline_input'>
             <label> Flight Num </label>
             <input id='flight_num_input'>
             <label> Departure Airport </label>
-            <input id='departure_airport_input'> 
+            <select id='departure_airport_input'>
+                <option value=''> </option>
+                <option value='AAE'> AAE </option>
+                <option value='AAL'> AAL </option>
+                <option value='AAM'> AAM </option>
+                <option value='AAR'> AAR </option>
+                <option value='ABE'> ABE </option>
+                <option value='ABI'> ABI </option>
+            </select> 
             <label> Arival Airport </label>
-            <input id='arival_airport_input'>
+            <select id='arival_airport_input'>
+                <option value=''> </option>
+                <option value='AAE'> AAE </option>
+                <option value='AAL'> AAL </option>
+                <option value='AAM'> AAM </option>
+                <option value='AAR'> AAR </option>
+                <option value='ABE'> ABE </option>
+                <option value='ABI'> ABI </option>
+            </select>
             <br/>
             <label> Departure Date </label>
-            <input id='departure_date_input'> 
-            <label> Arival Date </label>
-            <input id='arival_date_input'> 
+            <input id='departure_date_input' type='date'> 
+
             <button id='search_button'> Search </button>
         </div>
         <table id='flights'>
-            <tr>
-                <th> Airline </th>
-                <th> Flight Num </th>
-                <th> Departure Airport </th>
-                <th> Arival Airport </th>
-                <th> Departure Date </th>
-                <th> Arival Date </th>
-                <th> Flight Time </th>
-            </tr>
-
-            <tr>
-                <td> BestAirline </td>
-                <td> 001 </td>
-                <td> MSK </td>
-                <td> LDN </td>
-                <td> 01.01.1970 00:00 </td>
-                <td> 02.01.1970 00:00 </td>
-                <td> 24h </td>
-            </tr>
+            <thead>
+                <tr>
+                    <th> Airline </th>
+                    <th> Flight Number </th>
+                    <th> Departure Airport </th>
+                    <th> Arival Airport </th>
+                    <th> Departure Date </th>
+                    <th> Arival Date </th>
+                    <th> Flight Time </th>
+                    <th> Purchase </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
         </table>
     </div>
 
-    <div class="container for-user" id="insurences_container">
+    <div class="container for-user" id="insurances_container">
+        <h2> Active Insurances </h2>
+        <button id='update_isurances'> Update </button>
+        <table id='insurances'>
+            <thead>
+                <tr>
+                    <th> Airline </th>
+                    <th> Flight Number </th>
+                    <th> Cost </th>
+                    <th> Flight Status </th>
+                    <th> Get Paid </th> 
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
     </div>
 
     <div class="container for-airline" id="register_flight_container">
+        <h2> Flight Registration </h2>
+        <label> Flight Number </label>
+        <input id='new_flight_number'>
+        <label> Departure Airport </label>
+        <select id='new_departure_airport'>
+            <option value='AAE'> AAE </option>
+            <option value='AAL'> AAL </option>
+            <option value='AAM'> AAM </option>
+            <option value='AAR'> AAR </option>
+            <option value='ABE'> ABE </option>
+            <option value='ABI'> ABI </option>
+        </select>
+        <label> Arival Airport </label>
+        <select id='new_arival_airport'>
+            <option value='AAE'> AAE </option>
+            <option value='AAL'> AAL </option>
+            <option value='AAM'> AAM </option>
+            <option value='AAR'> AAR </option>
+            <option value='ABE'> ABE </option>
+            <option value='ABI'> ABI </option>
+        </select> 
+        <label> Departure Date </label>
+        <input id='new_departure_date' type='date'>
+        <label> Departure Time </label>
+        <input id='new_departure_time' type='time'>
+        <label> Arival Date </label>
+        <input id='new_arival_date' type='date'>
+        <label> Arival Time </label>
+        <input id='new_arival_time' type='time'>
+        <button id='register_new_flight'> Register New Flight </button>
     </div>
 
-    <div class="container for-airline" id="voting_container">
+    <div class="container for-airline" id="airline_administration_container">
+        <h2> Airline Administration Panel </h2>
+        <div>
+            <h3> Airline Registration(in testing) </h3>
+            <label> Airline Address </label>
+            <input id='new_airline_address'> 
+            <button id='register_airline_voting'> Register Airline(Vote) </button>
+        </div>
+
+        <div>
+            <h3> Airline Removal(in testing) </h3>
+            <label> Airline Address </label>
+            <input id='airline_for_removal_address'> 
+            <button id='remove_airline_voting'> Remove Airline(Vote) </button>
+        </div>
+
+        <div>
+            <h3> Funging </h3>
+            <button id='fund_contract'> Fund Contract </button>
+        </div>
+
+        <div>
+            <h3> Update App Contract(in testing) </h3>
+            <label> New Contract Address </label>
+            <input id='new_app_contract_address'>
+            <button id='update_app_contract'> Update App Contract </button>
+        </div>
+
     </div>
 
+    <div class="container for-admin" id='admin_panel'>
+        <h2> Contract Owner Panel </h2>
+        <button id='authorize_contract'> Authorize Contract </button>
+
+        <h3> Register Airline </h3>
+        <label> Airline Address </label>
+        <input id='new_airline_address_no_voting'>
+        <button id='register_airline_withoud_voting'> Register Airline </button>
+    </div>
+
+    <div class="container" id='history'>
+        <h2> History </h2>
+        <button> Load History </button>
+        <div></div>
+    </div>
+
+    <div id='popup_buy_insurance_form'>
+        <h4> Enter insurance cost </h4>
+        <input id='insurance_cost_input' type='number' step='0.01' min='0' max='1.5'>
+        <button style='display: inline-block;' id='buy_insurence'> Buy insurance</button>
+        <button style='display: inline-block;' id='hide_insurance_form'> Cancel </button>
     </div>
 
 </body>

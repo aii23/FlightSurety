@@ -5,7 +5,7 @@ body {
 }
 
 .container {
-    margin-top: 400px;
+    margin-top: 20px;
     background-color: #000;
     opacity: 0.9;
     color: #fff;
@@ -37,10 +37,24 @@ label.form {
     font-size: 14px;
     margin-right: 20px;
 }
-input {
-    margin-right: 30px;
+
+table td, table th {
+    border: 1px solid white;
 }
 
-#flights td, #flights th {
+
+#popup_buy_insurance_form {
+    display: none;
+    background-color: #fff;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 400px;
+    height: 100px;
+    margin-top: -100px;
+    margin-left: -250px;
+}
+
+#airline_administration_container div {
     border: 1px solid white;
 }

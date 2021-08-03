@@ -25,7 +25,11 @@ contract FlightSuretyData {
         bool isRegistered;
         uint8 statusCode;       
         address airline;
-        string flightNumber; // Unique within airline
+        bytes3 departureAirport; 
+        bytes3 arivalAirport;
+        string flightNumber; // Unique within airline  !!! Convert to bytes 
+        uint departureTime;
+        uint arivalTime;
         uint numOfInsurances;
         uint updatedTimestamp; 
     }
@@ -35,7 +39,7 @@ contract FlightSuretyData {
         uint payments;  
     }
 
-    mapping(bytes32 => Flight) private activeFlights;
+    mapping(bytes32 => Flight) public activeFlights;
 
     mapping(address => Airline) airlines; 
     uint private numOfAirlines; 
@@ -52,7 +56,7 @@ contract FlightSuretyData {
 
     mapping(uint => address[]) appContractVoting;
 
-    mapping(address => mapping(bytes32 => Insurance)) accountInsurances; 
+    mapping(address => mapping(bytes32 => Insurance)) public accountInsurances; 
 
     // mapping(uint => Flight) activeFlights;
 
@@ -82,20 +86,20 @@ contract FlightSuretyData {
         _fund(msg.sender);
     }
 
-    event FlightMemorization(uint8 statusCode, address airline, string flightNumber);
+    event OperationalVoting(address indexed voter, bool mode, bool last);
+    event OperationalVotingReverted(address indexed voter, uint position);
 
-    event OperationalVoting(address voter, bool mode, bool last);
-    event OperationalVotingReverted(address voter, uint position);
+    event AddingAirlineVoting(address indexed addedAirline, address indexed voter, bool last);
+    event RemoveAirlineVoting(address indexed removedAirline, address indexed voter, bool last);
 
-    event AddingAirlineVoting(address addedAirline, address voter, bool last);
-    event RemoveAirlineVoting(address removedAirline, address voter, bool last);
+    event AppContractUpdated(address indexed prevAppContract, address indexed newAppContract);
 
-    event AppContractUpdated(address prevAppContract, address newAppContract);
+    event FlightRegistered(address indexed airline, string indexed flightNumber, bytes32 key); // remove key;
 
-    event FlightRegistered(address airline, string flightNumber, bytes32 key); // remove key;
+    event BoughtInsurance(address indexed user, bytes32 flightKey, uint cost);
+    event PaidForInsurence(address indexed user, bytes32 flightKey, uint cost);
 
-    event BoughtInsurance(address user, bytes32 flightKey, uint cost);
-    event PaidForInsurence(address user, bytes32 flightKey, uint cost);
+    event FlightStatusUpdated(address indexed airline, string flightNumber, uint8 statusCode);
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -146,6 +150,13 @@ contract FlightSuretyData {
     function setFlightStatus(bytes32 flightKey, uint8 statusCode) external requireContractOwner 
     {
         activeFlights[flightKey].statusCode = statusCode;
+    }
+
+    function updateFlightStatus(address airline, string flightNum, uint8 statusCode) external onlyAuthorized 
+    {
+        bytes32 flightKey = keccak256(abi.encodePacked(airline, flightNum));
+        activeFlights[flightKey].statusCode = statusCode;
+        emit FlightStatusUpdated(airline, flightNum, statusCode);
     }
 
 
@@ -391,28 +402,43 @@ contract FlightSuretyData {
     {
         uint insurancesLeft = activeFlights[key].numOfInsurances.sub(1);
         delete accountInsurances[accountAddress][key]; 
-        
-        if (insurancesLeft == 0)
-        {
-            memorizeFlight(key);
-            delete activeFlights[key];
-        }
     }
 
-    function memorizeFlight(bytes32 key) private
-    {
-        Flight storage flight = activeFlights[key];
-        emit FlightMemorization(flight.statusCode, flight.airline, flight.flightNumber);
+    /*
+    struct Flight {
+        bool isRegistered;
+        uint8 statusCode;       
+        address airline;
+        bytes3 departureAirport; 
+        bytes3 arivalAirport;
+        string flightNumber; // Unique within airline  !!! Convert to bytes 
+        uint departureTime;
+        uint arivalTime;
+        uint numOfInsurances;
+        uint updatedTimestamp; 
     }
-
+*/
     // SHOULD I HAVE CHECK HERE TOO? 
-    function registerFlight(bytes32  key, address airlineAddress, string flightNumber, uint8 status) external onlyAuthorized
+    function registerFlight(
+        bytes32  key, 
+        address airlineAddress, 
+        string flightNumber, 
+        uint8 status,
+        bytes3 departureAirport,
+        bytes3 arivalAirport,
+        uint departureTime,
+        uint arivalTime
+    ) external onlyAuthorized
     {
         activeFlights[key] = Flight({
             isRegistered: true,
             statusCode: status,
             airline: airlineAddress,
+            departureAirport: departureAirport,
+            arivalAirport: arivalAirport,
             flightNumber: flightNumber,
+            departureTime: departureTime,
+            arivalTime: arivalTime,
             numOfInsurances: 0,
             updatedTimestamp: now
         });
