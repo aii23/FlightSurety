@@ -105,18 +105,20 @@ export default class Contract {
             });
     }
 
-    authorizeContract(callback)
+    authorizeContract()
     {
-        let payload = {
-            appContractAddress: this.flightSuretyApp.options.address
-        };
+        // let payload = {
+        //     appContractAddress: this.flightSuretyApp.options.address
+        // };
+
+        let appContractAddress = this.flightSuretyApp.options.address;
 
         // console.log(this.flightSuretyApp.options.address);
 
         this.flightSuretyData.methods
-            .authorizeContract(payload.appContractAddress)
+            .authorizeContract(appContractAddress)
             .send({ from: this.owner }, (error) => {
-                callback(error, payload);
+                console.log(error);
             });
     }
 

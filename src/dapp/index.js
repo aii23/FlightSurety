@@ -127,11 +127,13 @@ class Insurance {
 
         displayActiveInsurances();
 
+        /*
         // Read transaction
         contract.isOperational((error, result) => {
             console.log(error,result);
             display('Operational Status', 'Check if contract is operational', [ { label: 'Operational Status', error: error, value: result} ]);
         });
+        */
     
 
         // User-submitted transaction
@@ -160,9 +162,7 @@ class Insurance {
         });
 
         DOM.elid('authorize_contract').addEventListener('click', () => {
-            contract.authorizeContract((error, result) => {
-                display('AppContract', 'Authorize app contract', [ { label: 'Authorize Contract', error: error, value: result.appContractAddress } ]);
-            });
+            contract.authorizeContract();
         });
 
         DOM.elid('search_button').addEventListener('click', () => {
@@ -221,7 +221,7 @@ class Insurance {
     });
 })();
 
-
+/*
 function display(title, description, results) {
     let displayDiv = DOM.elid("display-wrapper");
     let section = DOM.section();
@@ -234,9 +234,9 @@ function display(title, description, results) {
         section.appendChild(row);
     })
     displayDiv.append(section);
-
 }
 
+*/
 
 
 

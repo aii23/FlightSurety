@@ -58,3 +58,17 @@ table td, table th {
 #airline_administration_container div {
     border: 1px solid white;
 }
+
+button {
+    border: 1px solid #ffffff;
+    border-radius: 6px;
+    color:#ffffff;
+    background-color: #000000;
+    padding: 0.2em 0.5em;
+}
+
+button:hover {
+    color:#000000;
+    background-color: #ffffff;
+    border: 1px solid #000000;
+}
