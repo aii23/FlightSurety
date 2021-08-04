@@ -40,19 +40,32 @@ label.form {
 
 table td, table th {
     border: 1px solid white;
+    padding: 5px 10px;
+    text-align: center;
 }
 
 
 #popup_buy_insurance_form {
     display: none;
-    background-color: #fff;
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 400px;
+    width: 300px;
     height: 100px;
     margin-top: -100px;
     margin-left: -250px;
+
+    padding: 10px;
+    background-color: #ACACAC;
+    border: 2px solid white;
+    border-radius: 10px;
+    opacity: 0.99;
+
+    color: black;
+}
+
+#popup_buy_insurance_form input {
+    width: 60px;
 }
 
 #airline_administration_container div {
@@ -71,4 +84,12 @@ button:hover {
     color:#000000;
     background-color: #ffffff;
     border: 1px solid #000000;
+}
+
+div label {
+    margin-right: 10px
+}
+
+div input, div select {
+    margin-right: 20px
 }

@@ -59,6 +59,8 @@ class Flight
         row.insertAdjacentHTML('beforeend', `<td> ${ this.arivalTime } </td>`);
         row.insertAdjacentHTML('beforeend', `<td> ${ this.flightTime } </td>`);
         
+        let tdWithButton = document.createElement('td');
+
         let purchaseButton = document.createElement('button');
         purchaseButton.innerHTML = 'Buy Insurance';
         purchaseButton.onclick = () => {
@@ -68,7 +70,10 @@ class Flight
             showInsurancePopup();
             // window.contract.buyInsurance(flightId);
         }
-        row.append(purchaseButton);
+
+        tdWithButton.appendChild(purchaseButton);
+
+        row.append(tdWithButton);
         return row;
     }
 }
@@ -93,6 +98,8 @@ class Insurance {
         row.insertAdjacentHTML('beforeend', `<td> ${ this.cost } </td>`);
         row.insertAdjacentHTML('beforeend', `<td> ${ convertStatusToString(this.flightStatusCode) } </td>`);
         
+        let tdWithButton = document.createElement('td');
+
         if (this.flightStatusCode == '20') {
             let getPaid = document.createElement('button');
             getPaid.innerHTML = 'Get Paid';
@@ -100,8 +107,11 @@ class Insurance {
                 let flightId = getFlightId(this.airline, this.flightNumber);
                 window.contract.payForInsurance(flightId);
             }
-            row.append(getPaid);
+            tdWithButton.append(getPaid);
         }
+
+        row.append(tdWithButton);
+        
         return row;
     }
 }
