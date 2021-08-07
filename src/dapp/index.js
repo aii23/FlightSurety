@@ -116,6 +116,42 @@ class Insurance {
     }
 }
 
+class Log {
+    constructor(type, blockNum, params) {
+        this.type = type; 
+        this.blockNum = blockNum;
+        this.params = params;
+    }
+
+    getHTML() {
+        let text = `Block: ${ this.blockNum }. `;
+        switch(this.type) {
+            case 'OperationalVoting': 
+                text += `Operational voting. Mode - ${ this.params[0] }. ${ this.params[1] ? 'Last vote.' : '' }`;
+                break; 
+            case 'OperationalVotingReverted':
+                text += `Revert operational voting`;
+                break;
+            case 'AddingAirlineVoting':
+                text += `Vote for adding airline ${ this.params[0] }. ${ this.params[1] ? 'Last vote.' : '' }`;
+                break;
+            case 'RemoveAirlineVoting':
+                text += `Vote for removing airline ${ this.params[0] }. ${ this.params[1] ? 'Last vote.' : '' }`;
+                break;
+            case 'FlightRegistered':
+                text += `Register flight with flight number ${ this.params[0] }`;
+                break; 
+            case 'BoughtInsurance':
+                text += `Bought insurance for flight ${ this.params[0] } with price ${ this.params[1] }eth`;
+                break;
+            case 'PaidForInsurence': 
+                text += `Got paid for insurance for flight ${ this.params[0] }. Paid funds - ${ this.params[1] }eth`
+                break;
+        }
+        return DOM.h5(text);
+    }
+}
+
 (async() => {
 
     let result = null;
@@ -227,6 +263,10 @@ class Insurance {
             let newAppContractAddress = DOM.elid('new_app_contract_address').value;
 
             contract.updateAppContract(newAppContractAddress);
+        });
+
+        DOM.elid('show_history').addEventListener('click', () => {
+            showTransactionHistory();
         });
     });
 })();
@@ -425,3 +465,86 @@ function convertStatusToString(statusCode) {
     }
     return result;
 }
+
+async function showTransactionHistory() {
+    let logTypes = [
+        {
+            type: 'OperationalVoting',
+            filterField: 'voter'
+        }, 
+        {
+            type: 'OperationalVotingReverted',
+            filterField: 'voter'
+        }, 
+        {
+            type: 'AddingAirlineVoting',
+            filterField: 'voter'
+        }, 
+        {
+            type: 'RemoveAirlineVoting',
+            filterField: 'voter'
+        }, 
+        {
+            type: 'FlightRegistered',
+            filterField: 'airline'
+        }, 
+        {
+            type: 'BoughtInsurance',
+            filterField: 'user'
+        },
+        {
+            type: 'PaidForInsurence',
+            filterField: 'user'
+        }
+    ];
+
+    let allLogsPromises = logTypes
+        .map(async type => { // Get logs of all types
+            let filter = {};
+            filter[type.filterField] = web3.eth.accounts[0];
+            let currentLogs = await contract.getPastEventsFiltered(type.type, filter);
+
+            return Promise.all(currentLogs
+                .map(async log => {   // Create logs entities
+                    let blockNum = log.blockNumber;
+                    let params = [];
+                    switch(type.type) {
+                        case 'OperationalVoting': 
+                            params.push(log.returnValues.mode);
+                            params.push(log.returnValues.last);
+                            break; 
+                        case 'AddingAirlineVoting':
+                        case 'RemoveAirlineVoting':
+                            params.push(log.returnValues.addedAirline);
+                            params.push(log.returnValues.last);
+                            break;
+                        case 'FlightRegistered':
+                            params.push(await getFlightNumByKey(log.returnValues.key));
+                            break; 
+                        case 'BoughtInsurance':
+                        case 'PaidForInsurence': 
+                            params.push(await getFlightNumByKey(log.returnValues.flightKey));
+                            params.push(web3.utils.fromWei(log.returnValues.cost, 'ether'));
+                            break;
+                    }
+                    return new Log(type.type, blockNum, params);
+                }));
+        });
+
+        let allLogs = (await Promise.all(allLogsPromises)).flat();
+
+        allLogs.sort((a, b) => a.blockNum - b.blockNum); // Sort logs by block number; 
+
+        console.log(allLogs);
+
+        allLogs // Display logs on screen 
+            .forEach(log => {
+                DOM.elid('history').appendChild(log.getHTML());
+            });
+
+}
+
+async function getFlightNumByKey(flightKey) {
+    let flight = await contract.getActiveFlight(flightKey);
+    return flight.flightNumber;
+} 
