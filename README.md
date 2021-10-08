@@ -46,7 +46,7 @@ Deploy the contents of the ./dapp folder
 ## Aditional information
 
 ### Oracles Private keys
-Oracles private keys is stored as list in file src/server/oraclesPrivateKeys.json. They have been created by ganache with mnemonic: "leopard harbor cost goddess plug fit muscle retire bundle exact awake escape". (Have been created 50 accounts, last 20 were used as oracles).
+Oracles private keys is stored as list in file src/server/oraclesPrivateKeys.json. They have been created by ganache with mnemonic: "leopard harbor cost goddess plug fit muscle retire bundle exact awake escape". (Have created 50 accounts, last 20 were used as oracles).
 
 ### Running test
 In order to run tests, you should previously run `ganache-cli -a 30 -e 1000` in another terminal. It is required, because by default truffle run `ganache-cli` with only 10 accounts, which is not enough for oracles testing. 
@@ -57,7 +57,7 @@ In order to run tests, you should previously run `ganache-cli -a 30 -e 1000` in 
 If you are active airline, you can register flight with required flight number, date and time.
 ![Register flight](img/FlightRegistration.PNG)
 #### Buying insurance
-After flight has been registered, any user can buy insurence for it. First of all he need to query desired flight. 
+After flight has been registered, any user can buy insurance for it. First of all he need to query desired flight. 
 ![Query result](img/BuyingInsurance.PNG)
 And after that buy insurance with desired flight.  
 ![Price picking](img/PickPrice.PNG)
