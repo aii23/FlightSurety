@@ -59,13 +59,13 @@ If you are active airline, you can register flight with required flight number, 
 #### Buying insurance
 After flight has been registered, any user can buy insurence for it. First of all he need to query desired flight. 
 ![Query result](img/BuyingInsurance.PNG)
-And after that buy insurance with desired flight.
+And after that buy insurance with desired flight.  
 ![Price picking](img/PickPrice.PNG)
 #### Fetching flight status
-If flight is finished(and oracles are ready) you can send oracle request
-![Form for sending oracle request](img/FeetchFlightStatus.PNG)
+If flight is finished(and oracles are ready) you can send oracle request.  
+![Form for sending oracle request](img/FetchFlightStatus.PNG)
 #### Receiving insurance payments
-If flight has been delayed by the company, you would see button "Get Paid" in your active insurances list(after refreshing)
+If flight has been delayed by the company, you would see button "Get Paid" in your active insurances list(after refreshing).
 ![List of active insurances](img/GetPaid.PNG)
 
 
