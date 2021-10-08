@@ -20,9 +20,7 @@ var Config = async function(accounts) {
         "0x2f2899d6d35b1a48a4fbdc93a37a72f264a9fca7"
     ];
 
-
     let owner = accounts[0];
-    //let firstAirline = accounts[1];
     let firstAirline = accounts[1];
     let airlines = accounts.slice(0, 10);
     let users = accounts.slice(10);
@@ -30,7 +28,6 @@ var Config = async function(accounts) {
     let flightSuretyData = await FlightSuretyData.new({ value: web3.utils.toWei('10', 'ether') });
     let flightSuretyApp = await FlightSuretyApp.new(flightSuretyData.address);
 
-    
     return {
         owner: owner,
         firstAirline: firstAirline,
