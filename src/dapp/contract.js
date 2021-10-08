@@ -67,13 +67,6 @@ export default class Contract {
             arivalTime: arivalTime
         }
 
-        // console.log(payload);
-
-        // console.log(departureAirport);
-        // console.log(arivalAirport);
-
-        // console.log(`registerFlight(${ flightNum }, ${ departureAirport }, ${ arivalAirport }, ${ departureTime }, ${ arivalTime })`);
-
         self.flightSuretyApp.methods
             .registerFlight(flightNum, departureAirport, arivalAirport, departureTime, arivalTime)
             .send({ from: self.owner }, (error, result) => {
@@ -107,13 +100,7 @@ export default class Contract {
 
     authorizeContract()
     {
-        // let payload = {
-        //     appContractAddress: this.flightSuretyApp.options.address
-        // };
-
         let appContractAddress = this.flightSuretyApp.options.address;
-
-        // console.log(this.flightSuretyApp.options.address);
 
         this.flightSuretyData.methods
             .authorizeContract(appContractAddress)

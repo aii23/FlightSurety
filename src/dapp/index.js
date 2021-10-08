@@ -25,8 +25,6 @@ class Flight
     }
 
     static fromContractFlight(contractFlight) {
-        // console.log(contractFlight.departureTime);
-        // console.log(new Date(contractFlight.departureTime));
         return  new Flight(
             contractFlight.airline,
             contractFlight.flightNumber,
@@ -38,13 +36,10 @@ class Flight
     }
 
     getFlightTime(departureTime, arivalTime) {
-        // console.log(arivalTime);
-        // console.log(departureTime);
         let flightTime = arivalTime - departureTime;
         var flightDays = Math.floor(flightTime / 86400000);
         var flightHrs = Math.floor((flightTime % 86400000) / 3600000);
         var flightMins = Math.round(((flightTime % 86400000) % 3600000) / 60000);
-        // console.log(flightTime);
         let timeWithoutDays = `${flightHrs}H ${flightMins}M`;
         return flightDays == 0 ? timeWithoutDays : `${flightDays}D ` + timeWithoutDays;
     }
@@ -64,11 +59,9 @@ class Flight
         let purchaseButton = document.createElement('button');
         purchaseButton.innerHTML = 'Buy Insurance';
         purchaseButton.onclick = () => {
-            // console.log(window.contract);
             let flightId = getFlightId(this.airline, this.flightNumber);
             window.currentFlightId = flightId;
             showInsurancePopup();
-            // window.contract.buyInsurance(flightId);
         }
 
         tdWithButton.appendChild(purchaseButton);
@@ -153,11 +146,7 @@ class Log {
 }
 
 (async() => {
-
-    let result = null;
-
-    if (window.ethereum) {    
-        // await window.ethereum.send('eth_requestAccounts');    
+    if (window.ethereum) {        
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         window.web3 = new Web3(window.ethereum);    
     } else {
@@ -166,21 +155,9 @@ class Log {
     
 
     let contract = new Contract('localhost', () => {
-
         window.contract = contract;
 
-        // contract.getInsurance();
-
         displayActiveInsurances();
-
-        /*
-        // Read transaction
-        contract.isOperational((error, result) => {
-            console.log(error,result);
-            display('Operational Status', 'Check if contract is operational', [ { label: 'Operational Status', error: error, value: result} ]);
-        });
-        */
-    
 
         // User-submitted transaction
         DOM.elid('submit-oracle').addEventListener('click', () => {
@@ -271,49 +248,13 @@ class Log {
     });
 })();
 
-/*
-function display(title, description, results) {
-    let displayDiv = DOM.elid("display-wrapper");
-    let section = DOM.section();
-    section.appendChild(DOM.h2(title));
-    section.appendChild(DOM.h5(description));
-    results.map((result) => {
-        let row = section.appendChild(DOM.div({className:'row'}));
-        row.appendChild(DOM.div({className: 'col-sm-4 field'}, result.label));
-        row.appendChild(DOM.div({className: 'col-sm-8 field-value'}, result.error ? String(result.error) : String(result.value)));
-        section.appendChild(row);
-    })
-    displayDiv.append(section);
-}
-
-*/
-
-
-
-
-
-
-// Get all flights from server, by parameters. returns array of Flight
-function getFlights() {
-
-}
-
-function searchFlights() 
-{
-    alert("Button Clicked");
-    
-}
-
 async function getFlightsFromBlockChain(contract , searchParams) 
 {  
-    // console.log(searchParams);
     let flights = [];
     let topics = {};
     if (searchParams.airline && searchParams.flightNumber) {
         let flightId = getFlightId(searchParams.airline, searchParams.flightNumber);
-        // console.log(flightId);
         let result = await contract.getActiveFlight(flightId);
-        // console.log(result);
         let flight = Flight.fromContractFlight(result);
         flights.push(flight);
     } else if (searchParams.flightNumber) {
@@ -321,7 +262,6 @@ async function getFlightsFromBlockChain(contract , searchParams)
         let events = await contract.getPastEvents('FlightRegistered', topics);
 
         let addFlightPromises = events.map(async (event) => {
-            console.log(event);
             let flightId = event.returnValues.key;
             let result = await contract.getActiveFlight(flightId);
             let flight = Flight.fromContractFlight(result);
@@ -331,7 +271,6 @@ async function getFlightsFromBlockChain(contract , searchParams)
         await Promise.all(addFlightPromises);
 
     } else if (searchParams.airline) {
-        // topics = [,searchParams.airline,];
         let filter = {
             airline: searchParams.airline
         };
@@ -358,8 +297,6 @@ async function getFlightsFromBlockChain(contract , searchParams)
         await Promise.all(addFlightPromises);
     }
 
-    console.log(searchParams);
-
     flights = flights.filter(flight => {
         let result = true;
         if (searchParams.departureAirport) {
@@ -384,14 +321,11 @@ async function getFlightsFromBlockChain(contract , searchParams)
         return result;
     });
 
-    // console.log(flights);
-
     return flights;
 }
 
 async function displayActiveInsurances() {
     let insurances = await getActiveInsurances();
-    console.log(insurances);
 
     let tbody = document.createElement('tbody');
     insurances.forEach(insurance => tbody.append(insurance.htmlTableRow()));
@@ -405,9 +339,6 @@ async function getActiveInsurances() {
     let boughtEvents = await contract.getPastEventsFiltered('BoughtInsurance', filter);
     let paidEvents = await contract.getPastEventsFiltered('PaidForInsurence', filter);
     let paidFlights = paidEvents.map((event) => event.returnValues.flightKey);
-
-    console.log(boughtEvents.map((event) => event.returnValues.flightKey));
-    console.log(paidFlights);
 
     let activeInsurances = boughtEvents
     .filter(boughtEvent => !paidFlights.includes(boughtEvent.returnValues.flightKey))
@@ -429,7 +360,6 @@ function getFlightId(airline, flightNum) {
 }
 
 function displayFlights(flights) {
-    // console.log(flights);
     let tbody = document.createElement('tbody');
     flights.forEach(flight => tbody.append(flight.htmlTableRow()));
     DOM.elid('flights').tBodies[0].replaceWith(tbody);
@@ -445,7 +375,6 @@ function showInsurancePopup() {
 
 function convertStatusToString(statusCode) {
     let result = 'Unknown';
-    console.log(statusCode);
     switch (statusCode) {
         case '10':
             result = 'On time';
@@ -467,6 +396,8 @@ function convertStatusToString(statusCode) {
 }
 
 async function showTransactionHistory() {
+    DOM.elid('history_list').innerHTML = "";
+    
     let logTypes = [
         {
             type: 'OperationalVoting',
@@ -501,7 +432,7 @@ async function showTransactionHistory() {
     let allLogsPromises = logTypes
         .map(async type => { // Get logs of all types
             let filter = {};
-            filter[type.filterField] = web3.eth.accounts[0];
+            filter[type.filterField] = (await window.web3.eth.getAccounts())[0];
             let currentLogs = await contract.getPastEventsFiltered(type.type, filter);
 
             return Promise.all(currentLogs
@@ -530,18 +461,14 @@ async function showTransactionHistory() {
                     return new Log(type.type, blockNum, params);
                 }));
         });
+    let allLogs = (await Promise.all(allLogsPromises)).flat();
 
-        let allLogs = (await Promise.all(allLogsPromises)).flat();
+    allLogs.sort((a, b) => a.blockNum - b.blockNum); // Sort logs by block number; 
 
-        allLogs.sort((a, b) => a.blockNum - b.blockNum); // Sort logs by block number; 
-
-        console.log(allLogs);
-
-        allLogs // Display logs on screen 
-            .forEach(log => {
-                DOM.elid('history').appendChild(log.getHTML());
-            });
-
+    allLogs // Display logs on screen 
+        .forEach(log => {
+            DOM.elid('history_list').appendChild(log.getHTML());
+        });
 }
 
 async function getFlightNumByKey(flightKey) {

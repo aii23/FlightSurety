@@ -12,13 +12,13 @@ contract FlightSuretyData {
     address private contractOwner;                                      // Account used to deploy contract
     bool private operational = true;                                    // Blocks all state changes throughout the contract if false
 
-    mapping(address => bool) authorizedContracts;                       // Addresses of FlightSuretyApp contract
+    mapping(address => bool) public authorizedContracts;                       // Addresses of FlightSuretyApp contract
 
     struct Airline
     {
         address id; 
         bool voted;
-        bool active; // ? 
+        bool active; // voted and funded
     }
 
     struct Flight {
@@ -27,10 +27,9 @@ contract FlightSuretyData {
         address airline;
         bytes3 departureAirport; 
         bytes3 arivalAirport;
-        string flightNumber; // Unique within airline  !!! Convert to bytes 
+        string flightNumber; // Unique within airline
         uint departureTime;
         uint arivalTime;
-        uint numOfInsurances;
         uint updatedTimestamp; 
     }
 
@@ -39,26 +38,40 @@ contract FlightSuretyData {
         uint payments;  
     }
 
+    struct Oracle {
+        bool isRegistered;
+        uint8[3] indexes;        
+    }
+
+    // Model for responses from oracles
+    struct ResponseInfo {
+        address requester;                              // Account that requested status
+        bool isOpen;                                    // If open, oracle responses are accepted
+        mapping(uint8 => address[]) responses;          // Mapping key is the status code reported
+                                                        // This lets us group responses and identify
+                                                        // the response that majority of the oracles
+    }
+
+    // Track all oracle responses
+    mapping(bytes32 => ResponseInfo) private oracleResponses;
+
+    // Track all registered oracles
+    mapping(address => Oracle) private oracles;
+
     mapping(bytes32 => Flight) public activeFlights;
 
     mapping(address => Airline) airlines; 
     uint private numOfAirlines; 
-
-
-
     uint constant MIN_AIRLINES_FOR_VOTING = 3;
     uint constant BITES_BEFORE_AIRLINE_VOTING = 4; 
 
-    mapping(uint => address[]) voting; // Operational and addition voting  ???
+    mapping(uint => address[]) voting;
 
     uint constant OPERATIONAL_VOTING = 1; 
-
 
     mapping(uint => address[]) appContractVoting;
 
     mapping(address => mapping(bytes32 => Insurance)) public accountInsurances; 
-
-    // mapping(uint => Flight) activeFlights;
 
     uint constant INITIAL_FUNDING_VALUE = 10 ether;
 
@@ -100,6 +113,9 @@ contract FlightSuretyData {
     event PaidForInsurence(address indexed user, bytes32 flightKey, uint cost);
 
     event FlightStatusUpdated(address indexed airline, string flightNumber, uint8 statusCode);
+
+    event OracleReport(address airline, string flightNum, uint256 timestamp, uint8 status);
+    event OracleRequest(uint8 index, address airline, string flightNum, uint256 timestamp);
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -159,7 +175,6 @@ contract FlightSuretyData {
         emit FlightStatusUpdated(airline, flightNum, statusCode);
     }
 
-
     // Add ability for address to access functions from current contract
     function authorizeContract(address _address) external requireContractOwner {
         authorizedContracts[_address] = true;
@@ -196,6 +211,11 @@ contract FlightSuretyData {
     function isFlightRegistered(bytes32 key) external view returns(bool)
     {
         return activeFlights[key].isRegistered;
+    }
+
+    function isContractAuthorized() external view returns(bool)
+    {
+        return authorizedContracts[msg.sender];
     }
 
     function isDuplicateAddress(address[] array, address target) private pure returns(bool) 
@@ -244,13 +264,15 @@ contract FlightSuretyData {
         return result;
     }
 
-    function findVotePosition(uint votingId, address voter, uint expectPosition) external returns(bool success, uint position)
+    function findVotePosition(uint votingId, address voter, uint expectPosition) external view returns(bool success, uint position)
     {
+        success = true;
         position = expectPosition;
         while (voting[votingId][position] != voter) 
         {
             if (position == 0) 
             {
+                success = false;
                 break;
             }
 
@@ -263,7 +285,7 @@ contract FlightSuretyData {
         return accountInsurances[accountAddress][flightId].active;
     } 
 
-    function getFlightStatusCode(bytes32 flightId) external returns(uint8) 
+    function getFlightStatusCode(bytes32 flightId) external view returns(uint8) 
     {
         return activeFlights[flightId].statusCode;
     } 
@@ -312,8 +334,8 @@ contract FlightSuretyData {
         emit RemoveAirlineVoting(airlineAddress, voter, false);
     }
 
-    // !!!!
-    function setOprationStatusByOwner(bool mode) requireContractOwner 
+
+    function setOprationStatusByOwner(bool mode) public requireContractOwner 
     {
         require(numOfAirlines < MIN_AIRLINES_FOR_VOTING, "There are enought airlines for voting. Use 'setOperatingStatus' for voting");
         operational = mode; 
@@ -378,8 +400,6 @@ contract FlightSuretyData {
             payments: payments
         });
 
-        activeFlights[key].numOfInsurances = activeFlights[key].numOfInsurances.add(1);
-
         emit BoughtInsurance(accountAddress, key, msg.value);
     }
 
@@ -400,25 +420,9 @@ contract FlightSuretyData {
 
     function _removeInsurance(address accountAddress, bytes32 key) private requireIsOperational
     {
-        uint insurancesLeft = activeFlights[key].numOfInsurances.sub(1);
         delete accountInsurances[accountAddress][key]; 
     }
 
-    /*
-    struct Flight {
-        bool isRegistered;
-        uint8 statusCode;       
-        address airline;
-        bytes3 departureAirport; 
-        bytes3 arivalAirport;
-        string flightNumber; // Unique within airline  !!! Convert to bytes 
-        uint departureTime;
-        uint arivalTime;
-        uint numOfInsurances;
-        uint updatedTimestamp; 
-    }
-*/
-    // SHOULD I HAVE CHECK HERE TOO? 
     function registerFlight(
         bytes32  key, 
         address airlineAddress, 
@@ -439,7 +443,6 @@ contract FlightSuretyData {
             flightNumber: flightNumber,
             departureTime: departureTime,
             arivalTime: arivalTime,
-            numOfInsurances: 0,
             updatedTimestamp: now
         });
 
@@ -471,8 +474,11 @@ contract FlightSuretyData {
                             )
                             private
     {
-        airlines[airlineAddress].active = true;
-        numOfAirlines++;
+        if (!airlines[airlineAddress].active) 
+        {
+            numOfAirlines++;
+            airlines[airlineAddress].active = true;
+        } 
     }
 
     function getFlightKey
@@ -486,6 +492,54 @@ contract FlightSuretyData {
                         returns(bytes32) 
     {
         return keccak256(abi.encodePacked(airline, flight, timestamp));
+    }
+
+    function createOracleRequest(address requester, bytes32 key) external requireIsOperational onlyAuthorized
+    {
+         oracleResponses[key] = ResponseInfo({
+                                                requester: requester,
+                                                isOpen: true
+                                            });
+    }
+
+    function registerOracle(address addr,  uint8[3] indexes) external payable requireIsOperational onlyAuthorized
+    {
+        oracles[addr] = Oracle({
+                                        isRegistered: true,
+                                        indexes: indexes
+                                    });
+    }
+
+    function isOracleRegistered(address addr) public view returns(bool)
+    {
+        return oracles[addr].isRegistered;
+    }
+
+    function getMyIndexes
+                            (
+                                address addr
+                            )
+                            view
+                            external
+                            returns(uint8[3])
+    {
+        require(oracles[addr].isRegistered, "Not registered as an oracle");
+
+        return oracles[addr].indexes;
+    }
+
+    function isOracleRequestOpen(bytes32 key) external view returns(bool) {
+        return oracleResponses[key].isOpen;
+    }
+
+    function addOracleResponse(bytes32 key, uint8 statusCode, address addr) external requireIsOperational onlyAuthorized returns(uint)
+    {
+        oracleResponses[key].responses[statusCode].push(addr);
+        return oracleResponses[key].responses[statusCode].length;
+    }
+
+    function closeOracleRequest(bytes32 key) external requireIsOperational onlyAuthorized {
+        oracleResponses[key].isOpen = false;
     }
 
     /**

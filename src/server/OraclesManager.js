@@ -11,7 +11,7 @@ class OraclesManager {
     }
 
     async initOracles() {
-        console.log('init started');
+        console.log('Init started');
         let oraclesPrivateKeys;
         try {
             oraclesPrivateKeys = require('./oraclesPrivateKeys.json');
@@ -35,7 +35,6 @@ class OraclesManager {
         if (OraclesData.OraclesData && OraclesData.DataContract === this.flightSuretyData._address) {
             console.log("Found data");
             oraclesData = OraclesData.OraclesData;
-            // console.log(oraclesData);
         } else {
             console.log('Registration started');
     
@@ -50,7 +49,6 @@ class OraclesManager {
         
             fs.writeFile('./src/server/OraclesData.json', JSON.stringify(result), function writeJSON(err) {
                 if (err) return console.log('Error');
-                console.log(JSON.stringify(result));
                 console.log('writing to ' + './src/server/OraclesData.json');
             });
         }
@@ -70,11 +68,11 @@ class OraclesManager {
     
     
     async registerOracle(oracle) {
-        console.log(`Try to register ${oracle}`);
+        console.log(`Try to register ${ oracle.address }`);
         let regFee = await this.flightSuretyApp.methods.REGISTRATION_FEE().call();
         let gas = 2000000;
         await this.flightSuretyApp.methods.registerOracle().send({ from: oracle.address, value: regFee, gas: gas });
-        console.log(`Oracle ${ oracle } registered`);
+        console.log(`Oracle ${ oracle.address } registered`);
     }
 
     async getOracleData(oracle) {
@@ -95,24 +93,16 @@ class OraclesManager {
     }
 
     async manageOracleRequestEvent(event) {
-        // console.log('Get OracleRequest event');
-        // console.log(event);
-
         let index = event.returnValues.index;
         let airline = event.returnValues.airline;
         let flightNum = event.returnValues.flightNum;
         let timeStamp = event.returnValues.timestamp;
 
-        // console.log(this);
-
         let result = this.getRandomResult();
-
-        // console.log(`Main result: ${ result }`);
         
         let responsibleOracles = this.indexToOracle[index];
 
         for (let oracle of responsibleOracles) {
-            // console.log(oracle);
             let falierNumber = Math.random();
             let curResult = result;
             if (falierNumber < this.falierPortion()) {
@@ -131,8 +121,6 @@ class OraclesManager {
                 .submitOracleResponse(index, airline, flightNum, timeStamp, curResult)
                 .send({ from: oracle, gas: gas })
                 .catch(e => {
-                    // console.log(`Can't submit oracle response`);
-                    // console.log(e.message);
                     shouldBreak = true;
                 });
             
@@ -144,7 +132,6 @@ class OraclesManager {
     }
 
     getRandomResult() {
-        // console.log(this);
         let index = Math.floor(Math.random() * this.avaliablesCodes().length);
         return this.avaliablesCodes()[index];
     }

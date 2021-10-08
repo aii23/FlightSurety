@@ -30,21 +30,16 @@ contract FlightSuretyApp {
 
     mapping(address => address[]) private appUpdateVoting; 
 
-
-    
     uint constant BITS_BEFORE_AIRLINE_VOTING = 4; 
     uint public FUNDING_VALUE = 10 ether;
 
     uint constant OPERATIONAL_VOTING = 1; 
-    uint constant MIN_AIRLINES_FOR_VOTING = 3;
-
+    uint constant MIN_AIRLINES_FOR_VOTING = 4;
 
     uint private constant MAX_INSURANCE_COST = 1 ether; 
 
-
     event UpdateAppContractVoting(address voter, address newContractAddress, bool last);
 
- 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
     /********************************************************************************************/
@@ -88,6 +83,12 @@ contract FlightSuretyApp {
     modifier onlyOwner() 
     {
         require(msg.sender == contractOwner, "Only owner can call this function");
+        _;
+    }
+
+    modifier contractAuthorized()
+    {
+        //require(dataContract.isContractAuthorized(), "Caller is not authorized"); // Can't understand why this line break everything. Run out of gas...
         _;
     }
 
@@ -151,6 +152,7 @@ contract FlightSuretyApp {
                             ) 
                             external
                             activeAirline 
+                            contractAuthorized
                             returns(bool success, uint256 votes)
     {
         require(mode != isOperational(), "Mode should differ from opperational");
@@ -170,25 +172,17 @@ contract FlightSuretyApp {
         }
     }
 
-    function removeOperationalVote(uint position) public activeAirline 
+    function removeOperationalVote(uint position) public activeAirline contractAuthorized
     {
         require(position < dataContract.getNumOfVotes(OPERATIONAL_VOTING), "Position can't be grater than array length");
         uint actPosition; 
         bool success; 
         (success, actPosition) = dataContract.findVotePosition(OPERATIONAL_VOTING, msg.sender, position);
 
+        require(success, "Can't find such voting");
+
         dataContract.removeOperationalVote(OPERATIONAL_VOTING, actPosition, msg.sender);
     } 
-
-    // Only for register first several airlines. 
-    function registerAirlineWithoutVoting(address addr) external requireIsOperational onlyOwner
-    {
-        require(dataContract.getNumOfAirlines() < MIN_AIRLINES_FOR_VOTING, 'Already enough airlines for voting');
-
-        uint votingId = getairlineVotingId(addr);
-
-        dataContract.confirmAirline(addr, votingId, msg.sender);
-    }
   
    /**
     * @dev Add an airline to the registration queue
@@ -201,6 +195,7 @@ contract FlightSuretyApp {
                             external
                             requireIsOperational
                             activeAirline
+                            contractAuthorized
                             returns(bool success, uint256 votes)
     {
         require(!dataContract.isVotedAirline(addr), "Voting already finished");
@@ -210,7 +205,7 @@ contract FlightSuretyApp {
 
         votes = dataContract.addVoter(votingId, msg.sender);
         uint numOfAirlines = dataContract.getNumOfAirlines();
-        success = 2 * votes >= numOfAirlines;
+        success = 2 * votes >= numOfAirlines || numOfAirlines < MIN_AIRLINES_FOR_VOTING;
 
         if  (success)
         {
@@ -222,7 +217,7 @@ contract FlightSuretyApp {
         }
     }
 
-    function unRegisterAirline(address addr) external requireIsOperational activeAirline returns(bool success, uint votes)
+    function unRegisterAirline(address addr) external requireIsOperational contractAuthorized activeAirline returns(bool success, uint votes)
     {
         require(dataContract.isActiveAirline(addr), "You cant unregister unregistered airline");// ?
         uint votingId = getairlineVotingId(addr);
@@ -252,21 +247,6 @@ contract FlightSuretyApp {
         dataContract.fund(msg.sender);
     }
 
-    /*
-    struct Flight {
-        bool isRegistered;
-        uint8 statusCode;       
-        address airline;
-        bytes3 departureAirport; 
-        bytes3 arivalAirport;
-        string flightNumber; // Unique within airline  !!! Convert to bytes 
-        uint departureTime;
-        uint arivalTime;
-        uint numOfInsurances;
-        uint updatedTimestamp; 
-    }
-    */
-
    /**
     * @dev Register a future flight for insuring.
     *
@@ -282,6 +262,7 @@ contract FlightSuretyApp {
                                 external
                                 requireIsOperational
                                 activeAirline
+                                contractAuthorized
     {
         bytes32 key = keccak256(abi.encodePacked(msg.sender, flightNumber)); 
         require(!dataContract.isFlightRegistered(key), "Flight is already registered");
@@ -298,7 +279,7 @@ contract FlightSuretyApp {
         );
     }
 
-    function buyInsurance(bytes32 key) external requireIsOperational payable
+    function buyInsurance(bytes32 key) external requireIsOperational contractAuthorized payable
     {
         require(dataContract.isFlightRegistered(key), "No such flight");
         require(msg.value <= MAX_INSURANCE_COST, "You have sent more than maximum insurance cost"); 
@@ -307,7 +288,7 @@ contract FlightSuretyApp {
         dataContract.buyInsurance.value(msg.value)(msg.sender, key, (msg.value * 3)/2);
     }
 
-    function payForInsurance(bytes32 key) external requireIsOperational
+    function payForInsurance(bytes32 key) external requireIsOperational contractAuthorized
     {
         require(dataContract.isFlightRegistered(key), "No such flight");
         require(dataContract.hasInsurance(msg.sender, key), "You don't have insurance for that flight");
@@ -324,7 +305,7 @@ contract FlightSuretyApp {
         }
     }
 
-    function updateAppContract(address newAppContract) external requireIsOperational activeAirline
+    function updateAppContract(address newAppContract) external requireIsOperational activeAirline contractAuthorized
     {
         require(!isDuplicateAddress(appUpdateVoting[newAppContract], msg.sender), "You have already voted for changing app contract.");
 
@@ -332,7 +313,7 @@ contract FlightSuretyApp {
 
         uint numOfAirlines = dataContract.getNumOfAirlines();
 
-        if  (appUpdateVoting[newAppContract].length > numOfAirlines / 2)
+        if  (appUpdateVoting[newAppContract].length >= numOfAirlines / 2)
         {   
             dataContract.updateAppContract(address(this), newAppContract);
             emit UpdateAppContractVoting(msg.sender, newAppContract, true);
@@ -343,11 +324,6 @@ contract FlightSuretyApp {
         }
     }
 
-    // !!! Позволяет компании зачистить страховки, если полёт в нужном статусе
-    function clearInsurances(bytes32 key, address[] addresses) external pure {
-
-    } 
-    
    /**
     * @dev Called after oracle has updated flight status
     *
@@ -373,14 +349,14 @@ contract FlightSuretyApp {
                         )
                         external
     {
+        bytes32 flightKey = keccak256(abi.encodePacked(airline, flightNum));
+        require(dataContract.getFlightStatusCode(flightKey) == STATUS_CODE_UNKNOWN, "Flight status is already known");
+
         uint8 index = getRandomIndex(msg.sender);
 
         // Generate a unique key for storing the request
         bytes32 key = keccak256(abi.encodePacked(index, airline, flightNum, timestamp));
-        oracleResponses[key] = ResponseInfo({
-                                                requester: msg.sender,
-                                                isOpen: true
-                                            });
+        dataContract.createOracleRequest(msg.sender, key);
 
         emit OracleRequest(index, airline, flightNum, timestamp);
     } 
@@ -397,27 +373,6 @@ contract FlightSuretyApp {
     // Number of oracles that must respond for valid status
     uint256 private constant MIN_RESPONSES = 3;
 
-
-    struct Oracle {
-        bool isRegistered;
-        uint8[3] indexes;        
-    }
-
-    // Track all registered oracles
-    mapping(address => Oracle) private oracles;
-
-    // Model for responses from oracles
-    struct ResponseInfo {
-        address requester;                              // Account that requested status
-        bool isOpen;                                    // If open, oracle responses are accepted
-        mapping(uint8 => address[]) responses;          // Mapping key is the status code reported
-                                                        // This lets us group responses and identify
-                                                        // the response that majority of the oracles
-    }
-
-    // Track all oracle responses
-    // Key = hash(index, flight, timestamp)
-    mapping(bytes32 => ResponseInfo) private oracleResponses;
 
     // Event fired each time an oracle submits a response
     event FlightStatusInfo(address airline, string flightNum, uint256 timestamp, uint8 status);
@@ -436,16 +391,15 @@ contract FlightSuretyApp {
                             )
                             external
                             payable
+                            requireIsOperational
+                            contractAuthorized
     {
         // Require registration fee
         require(msg.value >= REGISTRATION_FEE, "Registration fee is required");
 
         uint8[3] memory indexes = generateIndexes(msg.sender);
 
-        oracles[msg.sender] = Oracle({
-                                        isRegistered: true,
-                                        indexes: indexes
-                                    });
+        dataContract.registerOracle(msg.sender, indexes);
     }
 
     function getMyIndexes
@@ -455,9 +409,7 @@ contract FlightSuretyApp {
                             external
                             returns(uint8[3])
     {
-        require(oracles[msg.sender].isRegistered, "Not registered as an oracle");
-
-        return oracles[msg.sender].indexes;
+        return dataContract.getMyIndexes(msg.sender);
     }
 
 
@@ -474,27 +426,26 @@ contract FlightSuretyApp {
                             uint8 statusCode
                         )
                         external
+                        requireIsOperational
     {
-        require((oracles[msg.sender].indexes[0] == index) || (oracles[msg.sender].indexes[1] == index) || (oracles[msg.sender].indexes[2] == index), "Index does not match oracle request");
-
+        uint8[3] memory indexes = dataContract.getMyIndexes(msg.sender);
+        require((indexes[0] == index) || (indexes[1] == index) || (indexes[2] == index), "Index does not match oracle request");
 
         bytes32 key = keccak256(abi.encodePacked(index, airline, flightNum, timestamp)); 
-        require(oracleResponses[key].isOpen, "Flight or timestamp do not match oracle request");
+        require(dataContract.isOracleRequestOpen(key), "Flight or timestamp do not match oracle request");
 
-        oracleResponses[key].responses[statusCode].push(msg.sender);
+        uint numOfResponses = dataContract.addOracleResponse(key, statusCode, msg.sender);
 
-        // Information isn't considered verified until at least MIN_RESPONSES
-        // oracles respond with the *** same *** information
         emit OracleReport(airline, flightNum, timestamp, statusCode);
-        if (oracleResponses[key].responses[statusCode].length >= MIN_RESPONSES) {
+        
+        if (numOfResponses >= MIN_RESPONSES) {
 
             emit FlightStatusInfo(airline, flightNum, timestamp, statusCode);
-            oracleResponses[key].isOpen = false;
+            dataContract.closeOracleRequest(key);
             // Handle flight status as appropriate
             processFlightStatus(airline, flightNum, statusCode);
         }
     }
-
 
     function getFlightKey
                         (
@@ -583,4 +534,12 @@ contract FlightSuretyData {
     function removeInsurance(address accountAddress, bytes32 key) external;
     function updateAppContract(address prevAppContract, address newAppContract) external;
     function updateFlightStatus(address airline, string flightNum, uint8 statusCode) external;
+    function isContractAuthorized() external view returns(bool);
+    function registerOracle(address addr,  uint8[3] indexes) external payable;
+    function getMyIndexes(address addr) view external returns(uint8[3]);
+    function isOracleRegistered(address addr) public view returns(bool);
+    function isOracleRequestOpen(bytes32 key) external view returns(bool);
+    function addOracleResponse(bytes32 key, uint8 statusCode, address addr) external  returns(uint);
+    function closeOracleRequest(bytes32 key) external;
+    function createOracleRequest(address requester, bytes32 key) external;
 }

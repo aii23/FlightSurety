@@ -3,9 +3,10 @@ var mnemonic = "leopard harbor cost goddess plug fit muscle retire bundle exact 
 
 module.exports = {
   networks: {
-    develop: {
-      accounts: 50,
-      defaultEtherBalance: 500,
+    development: {
+      host: "localhost",
+      port: 8545,
+      network_id: "*" // Match any network id
     },
     ganache: {
       provider: function() {
